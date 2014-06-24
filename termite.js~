@@ -1,0 +1,438 @@
+Termite.prototype = new Agent();
+Termite.prototype.constructor = Termite;
+
+function Termite() {
+	Agent.call(this);
+	this.typeId = "termite";
+	this.boundingRadius = 3;
+	this.perceptionRadius = 100;
+	
+	this.identifier = Math.random() * 1000;
+	this.hasWood = false;
+
+	this.explore = false;
+	this.alternate = false;
+	this.currentWall = 0
+
+	this.angleOrigine = null;
+	this.angleDest = null;
+
+	this.hasTarget = false
+
+	this.collideTypes = ["wood_heap", "wall","angle"];
+	this.contactTypes = ["wood_heap", "wall","angle"];
+	
+	this.lastX = -1;
+	this.lastY = -1;
+
+	this.currentWallIdentifier = 0
+	this.heapInfos = [];
+	this.angles = [];
+	this.anglesToUpdate = [];
+
+	this.lastHit = -1;
+	this.nbHits = 0;
+
+	this.directionDelay = 0;
+	this.speed = 500;
+	this.updateRandomDirection();
+
+}
+
+Termite.prototype.updateRandomDirection = function(dt) {
+	this.hasTarget = false;
+	this.explore = false;
+	this.perceptionRadius = 100;
+	this.direction = new Vect(Math.random() * 2 - 1, Math.random() * 2 - 1);
+	this.direction.normalize(1);
+};
+
+Termite.prototype.updateDirection = function(dt) {
+	if(!this.explore && ! this.hasTarget){
+		this.updateRandomDirection();
+	}	
+	//console.log(this.x+" "+this.y);
+	/*
+	if(!this.explore){
+		this.updateRandomDirection();
+	}
+	else{
+		this.updateRandomDirection();
+		//this.setTarget(this.x,this.y-1);
+	}
+*/
+};
+
+Termite.prototype.goToUp = function(){
+	this.setTarget(this.x,this.y-10);
+}
+
+Termite.prototype.goToUpDirection = function(dt) {
+	this.direction = new Vect(15,-5);
+	this.direction.normalize(1);
+};
+
+
+Termite.prototype.setTarget = function(x, y) {
+	this.direction = new Vect(x - this.x, y - this.y);
+	this.direction.normalize(1);
+};
+
+Termite.prototype.update = function(dt) {
+	this.directionDelay -= dt;
+	if(this.directionDelay <= 0) {
+		var targetHeap = null;
+		var nbRef = 0;
+		var searchTargetHeap = (Math.random() < 0.9)
+		if(searchTargetHeap && !this.explore) {
+			for(identifier in this.heapInfos) {
+				var heapInfo = this.heapInfos[identifier];
+				if(!heapInfo.dead) {
+					nbRef ++;
+					if(this.hasWood) {
+						if(targetHeap == null || heapInfo.count > targetHeap.count) {
+							targetHeap  = heapInfo;
+						}
+					} else if(!this.hasWood) {
+						if(targetHeap == null || heapInfo.count < targetHeap.count) {
+							targetHeap  = heapInfo;
+						}			
+					}
+				}
+			}
+		}
+		if(nbRef > 1 && targetHeap) {
+			this.setTarget(targetHeap.x, targetHeap.y);
+		} else {
+			this.updateDirection();
+		}
+		this.speed = 100 + Math.random() * 200;
+		this.directionDelay = 100 + Math.random() * 900;
+	}
+	var x = this.x + this.direction.x * this.speed * dt / 1000;
+	var y = this.y + this.direction.y * this.speed * dt / 1000;
+	this.moveTo(x,y);
+};
+
+
+Termite.prototype.buildPath = function() {
+	
+};
+
+Termite.prototype.nextDirection = function() {
+	if(this.angles.length > 5){
+		if(this.angleOrigine == null){
+			console.log("Nouvelle destination sans angle de départ");
+			console.log("a");
+			var newDest = this.angles[Math.round(Math.random()*(this.angles.length))];
+			console.log("a");			
+			this.hasTarget = true;
+			this.setTarget(newDest.x,newDest.y);
+			console.log("a");
+			this.angleDest = newDest;
+ 		}
+		else{
+			console.log("Nouvelle destination avec angle de départ");
+			var newDest = this.angleOrigine.voisins[Math.round(Math.random()*(this.angleOrigine.voisins.length))];
+			this.hasTarget = true;
+			this.setTarget(newDest.x,newDest.y);
+			this.angleDest = newDest;
+		}	
+	}
+	else{
+		console.log("I don't care!")		
+		this.updateRandomDirection();
+	}
+	this.directionDelay = 0;
+};
+
+Termite.prototype.draw = function(context) {
+	context.fillStyle = this.hasWood ? "#f00" : "#000";
+	context.strokeStyle = "#000";
+	context.beginPath();
+	context.arc(this.x,this.y,this.boundingRadius,0,2*Math.PI);
+	context.fill();
+	context.stroke();
+	this.angles.forEach(function(a){
+		context.fillStyle = "#f00";
+		context.strokeStyle = "#f00";
+		context.beginPath();
+		context.rect(a.x,a.y,2,2);
+		context.fill();
+		context.stroke();
+	});
+	
+};
+
+
+
+Termite.prototype.unexplore = function() {
+	if(this.explore && this.lastX > 0){
+		console.log("angle")
+		this.nouvelAngle(this.lastX, this.lastY);
+	}
+	this.explore = false;
+	this.lastX = -1;
+	this.lastY = -1;
+};
+
+
+Termite.prototype.processCollision = function(collidedAgent) {
+	if(collidedAgent == null){
+		this.unexplore();
+		this.currentWall = 0;
+		this.directionDelay = 0;
+		this.perceptionRadius = 100;
+		this.nbHits = 0;
+		this.lastHit = -1;
+		//this.nextDirection();
+	}else if(collidedAgent.typeId == "wall") {
+		/*Cas ou la termite est bloquée*/
+		if(this.lastHit == collidedAgent.identifier){
+			this.nbHits ++;
+			if(this.nbHits > 2){
+				this.explore = false;
+				this.updateRandomDirection();
+				return;
+			}
+		}	
+		else{
+			this.lastHit =collidedAgent.identifier;
+			this.nbHits = 1;
+		}
+
+		/*Cas ou la termite a une destination précise*/
+		if(this.hasTarget){
+			console.log("Mur rencontré");
+			this.hasTarget = false;
+			this.explore = false; // pour explorer dans le if plus bas
+			if(this.angleOrigine != null && this.angleDest != null){
+				this.supprimeLiaison();
+			}
+		}
+
+		/*Arret de l'exploration*/	
+		if(this.explore && collidedAgent.identifier != this.currentWall){
+			this.unexplore();
+		}
+
+		/*Passage en mode exploration*/
+		if(!this.explore){
+			this.currentWall = collidedAgent.identifier;
+			this.explore = true
+			this.perceptionRadius = 10;
+			var dir = Math.random();
+			if(collidedAgent.boundingHeight == 20){
+				//console.log("Mur horiontal");
+				if(dir < 0.5){
+					//console.log("On va a droite")
+					this.setTarget(600,this.y)
+				}
+				else{
+					//console.log("On va a gauche")
+					this.setTarget(0,this.y)
+				}
+			}
+			else{
+				//console.log("Mur vertical");
+				if(dir < 0.5){
+					//console.log("On va en haut")
+					this.setTarget(this.x,0)
+				}
+				else{
+					//console.log("On va en bas")
+					this.setTarget(this.x,600)
+				}
+			}
+		}
+		this.directionDelay = 0;
+	}
+	else if(collidedAgent.typeId == "wood_heap" && !collidedAgent.dead) {
+		if(this.hasWood) {
+			collidedAgent.addWood();
+			this.hasWood = false;
+		} else {
+			collidedAgent.takeWood();
+			this.hasWood = true;
+		}
+		this.heapInfos[collidedAgent.identifier]={
+			"x":collidedAgent.x,
+			"y":collidedAgent.y,
+			"dead":collidedAgent.dead,
+			"count": collidedAgent.woodCount,
+			"date" : new Date()
+		};
+		this.directionDelay = 0;	
+	}
+	else if(collidedAgent.typeId == "angle"){
+		this.explore = false;
+		this.perceptionRadius = 100;
+		this.directionDelay = 0;
+		/*
+		if(this.angleDest != null && this.angleDest.identifier == collidedAgent.identifier){
+			console.log("Destination atteinte");
+			this.angleOrigine = this.angleDest
+			this.angleDest = null
+					this.nextDirection();		
+		}
+		*/
+	} 
+	else if(collidedAgent.typeId == "angle"){
+		console.log("Pas à moi")
+	}
+};
+
+Termite.prototype.processPerception = function(perceivedAgent) {
+	if(perceivedAgent.typeId == "wood_heap") {
+		this.heapInfos[perceivedAgent.identifier] = {
+			"x":perceivedAgent.x,
+			"y":perceivedAgent.y,
+			"dead":perceivedAgent.dead,
+			"count": perceivedAgent.woodCount,
+			"date" : new Date()
+		};
+	} else if(perceivedAgent.typeId == "termite") {
+		/*Echange des infos sur les tas de bois*/
+		for(identifier in perceivedAgent.heapInfos) {
+			var heapInfo = perceivedAgent.heapInfos[identifier];
+			if(this.heapInfos[identifier] == null) {
+				this.heapInfos[identifier] = heapInfo;
+			} else if(this.heapInfos[identifier].date < heapInfo.date){
+				this.heapInfos[identifier] = heapInfo;		
+			}		
+			
+		}
+
+		/*Echange des infos sur les angles
+		var listeA = [];
+		var listeB = [];
+		var aSupprimer = [];
+		perceivedAgent.angles.forEach(function(angB){
+			equivalentAngB = this.equivalent(angB,this.angles);
+			if(equivalentAngB == null){
+				this.nouvelAngle(angB.x,angB.y);
+				equivalentAngB = this.equivalent(angB,this.angles);
+			}
+			listeA.push(equivalentAngB);
+			listeB.push(angB);
+		});
+		for(var i=0; i < listeA.length;i++){
+			listeA[i].voisins.forEach(function(v){
+				if(equivalent(v,listeB[i].voisins) != null){
+					aSupprimmer.push((v,listeA[i]));
+				}
+			});
+		}
+		aSupprimer.forEach(function(aSup){
+			aSup[0].supprimerVoisin(aSup[1]);
+		});*/
+		
+	}else if(perceivedAgent.typeId == "wall") {
+		if(perceivedAgent.identifier == this.currentWall){	
+			this.lastX = this.x;
+			this.lastY = this.y;
+		}
+		
+	}
+
+
+};
+/*
+Termite.prototype.equivalent = function(ang,list){
+	equivalent = null
+	list.forEach(function(element){
+		if(Math.abs(element.x - ang.x) + Math.abs(element.y - ang.y) < 100){
+			equivalent = element;
+			return;
+		}
+	};
+	return equivalent;
+};*/
+
+Termite.prototype.nouvelAngle = function(x,y) {
+	if(this.angles.length > 0){
+		return;
+	}
+	angle = new Angle(x,y,this.identifier);
+	//console.log("*****\n Angle nNouvel");
+	//console.log("Avant ajout "+this.angles.length+" angles");
+	this.angles.forEach(function(a){
+		//console.log("Angles "+a.identifier)
+		//console.log(a.voisins.length+" voisins avant ajout");
+		a.ajouterVoisin(angle);
+		//console.log(a.voisins.length+" voisins après ajout");
+		angle.ajouterVoisin(a);
+		//console.log("Le nouvel angle a "+angle.voisins.length+" voisins");
+	});
+	this.angles.push(angle);
+	//console.log("Apres ajout "+this.angles.length+" angles");
+	this.anglesToUpdate.push(angle);
+};
+
+Termite.prototype.supprimeLiaison= function() {
+	this.angleOrigine.supprimerVoisin(this.angleDest);
+	this.angleDest.SupprimerVoisin(this.angleOrigine);
+};
+
+
+/*############################################*/
+
+Angle.prototype = new Agent();
+Angle.prototype.constructor = Angle;
+
+function Angle(x,y,termiteIdentifier) {
+	this.typeId = "angle";
+	this.identifier = Math.random() * 1000;;
+	this.termiteIdentifier = termiteIdentifier;
+	this.boundingRadius = 1;
+	this.boundingWidth = 1;
+	this.boundingHeight = 1;
+	this.x = x;
+	this.y = y;
+	this.voisins = [];
+}
+
+Angle.prototype.existe = function(newAngle) {
+	console.log("Nouvel angle x "+newAngle.x);
+	console.log("Nouvel angle y "+newAngle.y);
+	var trouve = false;
+	this.voisins.forEach(function(a){
+	console.log("###############");
+	console.log("Ref x "+a.x);
+	console.log("Ref angle y "+a.y);
+		if(Math.abs(newAngle.x - a.x) + Math.abs(newAngle.y - a.y) < 400){
+			console.log("Identique");
+			console.log("###############");
+			trouve = true;
+		}
+	});
+	console.log("Nothing found");
+	console.log("###############");
+	return trouve;
+}
+
+Angle.prototype.ajouterVoisin = function(newAngle) {
+	if(this.existe(newAngle)){
+		return;
+	}
+	this.voisins.push(newAngle);
+};
+
+
+Angle.prototype.supprimerVoisin = function(angle) {
+	var newVoisins = [];
+	console.log("Avant "+this.voisins.length)
+	this.voisins.forEach(function(a){
+		if(a.identifier != angle.identifier){
+			newVoisins.push(a);
+		}
+	});
+	this.voisins = newVoisins;
+	console.log("Apres "+this.voisins.length)
+};
+
+
+
+
+
+

@@ -1,0 +1,45 @@
+<html>
+<header>
+	<script type="text/javascript" src="./vector.js"></script>
+	<script type="text/javascript" src="./world.js"></script>
+	<script type="text/javascript" src="./agent.js"></script>
+	<script type="text/javascript" src="./termite.js"></script>
+	<script type="text/javascript" src="./wood_heap.js"></script>
+	<script type="text/javascript" src="./wall.js"></script>
+	<script type="text/javascript" src="./world_solver.js"></script>
+	<script language="javascript">
+	var world = null;
+	var canvasElement = null;
+	var canvasContext = null;
+
+	var mainLoop = null;
+	var lastUpdate = Date.now();
+	var dt = 0;
+
+	function updateTime() {
+		var now = Date.now();
+    	dt = now - lastUpdate;
+    	lastUpdate = now;		
+	}
+
+	function init(){
+		t1 = new Termite();
+		t2= new Termite();
+		t1.nouvelAngle(0,0);
+		t2.nouvelAngle(1,1);
+		t1.angles.forEach(function(v){
+			alert(v.x)
+		});
+	/*
+		foreach(var a in t1.angles){
+			alert("x:"+a.x+" y:"a.y);
+		}*/
+	}
+	</script>
+</header>
+<body onload="init()">
+	<canvas id="canvas" width="600" height="600" style="background-color:#eee; display:inline-block">
+
+	</canvas>
+</body>
+</html>
